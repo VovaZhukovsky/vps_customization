@@ -10,36 +10,43 @@ VPS server customization automation. Scripts for configuring a fresh VPS: iptabl
 
 ```
 scripts/
-  setup_github_runner_user.sh  # bootstrap CI access: create user + generate SSH key pair
-  firewall.sh                  # iptables rules (INPUT/OUTPUT/FORWARD chains)
-  ssh.sh                       # harden sshd_config
-  xray.sh                      # install and configure Xray-core
+  bootstrap.sh    # entry point: creates deploy users, changes SSH port, prints GitHub Secrets
+  setup_user.sh   # creates a user, generates ed25519 SSH key pair, configures sudoers
+  ssh.sh          # hardens sshd_config (options: change-port, harden)
+  firewall.sh     # iptables rules (INPUT/OUTPUT/FORWARD chains), reads SSH port from sshd_config
 .github/
   workflows/
-    check-ssh.yml              # manual workflow to verify SSH connectivity
-    deploy.yml                 # run deploy scripts on VPS (planned)
+    check-ssh.yml # manual workflow to verify SSH connectivity
 ```
 
 ## Design Conventions
 
 - All scripts are idempotent — safe to re-run on an already-configured server.
 - Each script uses `set -euo pipefail` — exits on first error.
-- Secrets (SSH private key, VPS IP, Xray UUID) live in GitHub Actions secrets only.
+- Secrets (SSH private key, VPS IP) live in GitHub Actions secrets only.
 - `firewall.sh` always runs last to avoid locking out the CI runner mid-deploy.
-- Xray config: `/usr/local/etc/xray/config.json`.
-- iptables rules persist via `iptables-save > /etc/iptables/rules.v4` (requires `iptables-persistent` on Ubuntu/Debian).
+- `firewall.sh` auto-detects SSH port from `/etc/ssh/sshd_config`.
+- iptables rules persist via `iptables-save > /etc/iptables/rules.v4`.
 
 ## Bootstrapping a New Server
 
-Run once manually on the VPS to create the `github-runner` user and generate an SSH key pair:
+Run once manually on the VPS:
 
 ```bash
-sudo bash scripts/setup_github_runner_user.sh
+sudo bash scripts/bootstrap.sh <username> [username2 ...]
 ```
 
-The script prints all four GitHub Secrets at the end: `SSH_KEY` (private key), `SSH_HOST`, `SSH_PORT`, `SSH_USER`.
+`bootstrap.sh` calls `setup_user.sh` for each user, runs `ssh.sh change-port`, then prints GitHub Secrets (`SSH_KEY`, `SSH_HOST`, `SSH_PORT`, `SSH_USER`) for each user.
 
-The `github-runner` user gets passwordless sudo only for `/opt/deploy/*.sh`.
+Each deploy user gets passwordless sudo only for `/opt/deploy/*.sh`.
+
+## ssh.sh Options
+
+```bash
+sudo bash scripts/ssh.sh change-port   # pick random port (1024-65535), write to /tmp/ssh_new_port
+sudo bash scripts/ssh.sh harden        # disable root login and password auth
+sudo bash scripts/ssh.sh change-port harden  # both at once
+```
 
 ## GitHub Actions Pattern
 
