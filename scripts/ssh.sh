@@ -28,6 +28,22 @@ set_sshd_option() {
   fi
 }
 
+# ── Argument: harden ─────────────────────────────────────────────────────────
+cmd_harden() {
+  log "Applying hardened sshd settings"
+
+  set_sshd_option "PermitRootLogin"              "no"
+  set_sshd_option "PasswordAuthentication"       "no"
+  set_sshd_option "PermitEmptyPasswords"         "no"
+  set_sshd_option "KbdInteractiveAuthentication" "no"
+
+  log "Reloading sshd"
+  systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null \
+    || die "Failed to restart sshd"
+
+  log "Hardening applied"
+}
+
 # ── Argument: change-port ─────────────────────────────────────────────────────
 cmd_change_port() {
   # If port was already changed (not 22), skip
@@ -71,6 +87,7 @@ cmd_change_port() {
 for arg in "$@"; do
   case "${arg}" in
     change-port) cmd_change_port ;;
-    *) die "Unknown option: '${arg}'. Available: change-port" ;;
+    harden)      cmd_harden ;;
+    *) die "Unknown option: '${arg}'. Available: change-port, harden" ;;
   esac
 done
