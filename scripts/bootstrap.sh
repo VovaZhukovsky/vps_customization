@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
-# setup_github_runner_user.sh
-# Creates a dedicated 'github-runner' user and generates an SSH key pair for GitHub Actions.
+# bootstrap.sh
+# Creates a dedicated 'github-runner' user, generates an SSH key pair,
+# and configures sshd for GitHub Actions access.
 #
 # Usage:
-#   sudo bash setup_github_runner_user.sh
+#   sudo bash bootstrap.sh
 #
-# After running, copy the printed private key into GitHub Secrets as SSH_KEY.
+# After running, copy the printed secrets into GitHub → Settings → Secrets.
 # The script is idempotent: safe to re-run on an already-configured server.
 
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 log() { echo "[$(date '+%H:%M:%S')] $*" >&2; }
@@ -79,10 +82,16 @@ else
   visudo -cf "${SUDOERS_FILE}" || { rm -f "${SUDOERS_FILE}"; die "sudoers syntax error — rule removed"; }
 fi
 
+# ── Change SSH port ───────────────────────────────────────────────────────────
+log "Changing SSH port"
+bash "${SCRIPT_DIR}/ssh.sh" change-port
+
+SSH_PORT=$(cat /tmp/ssh_new_port)
+rm -f /tmp/ssh_new_port
+
 # ── Print GitHub Secrets ──────────────────────────────────────────────────────
 log "Done."
 
-SSH_PORT=$(ss -tlnp | awk '/sshd/{print $4}' | grep -oE '[0-9]+$' | head -1)
 SSH_HOST=$(hostname -I | awk '{print $1}')
 
 echo >&2
@@ -90,7 +99,7 @@ echo "======== GitHub Actions Secrets ========" >&2
 echo >&2
 echo "SSH_USER=${RUNNER_USER}" >&2
 echo "SSH_HOST=${SSH_HOST}" >&2
-echo "SSH_PORT=${SSH_PORT:-22}" >&2
+echo "SSH_PORT=${SSH_PORT}" >&2
 echo >&2
 echo "SSH_KEY:" >&2
 cat "${PRIVATE_KEY}"
