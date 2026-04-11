@@ -49,6 +49,9 @@ iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 5/s --limit-
 # SSH
 iptables -A INPUT -p tcp --dport "${SSH_PORT}" -m conntrack --ctstate NEW -j ACCEPT
 
+# HTTPS (Xray)
+iptables -A INPUT -p tcp --dport 443 -m conntrack --ctstate NEW -j ACCEPT
+
 # ── Persist rules ─────────────────────────────────────────────────────────────
 log "Saving rules"
 if command -v iptables-save &>/dev/null; then

@@ -28,15 +28,23 @@ for user in "$@"; do
 done
 
 # ── Install 3x-ui ────────────────────────────────────────────────────────────
-log "Installing 3x-ui"
-bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)
+if command -v x-ui &>/dev/null || systemctl is-active --quiet x-ui 2>/dev/null; then
+  log "3x-ui already installed — skipping"
+else
+  log "Installing 3x-ui"
+  bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)
+fi
 
-# ── Change SSH port ───────────────────────────────────────────────────────────
-log "Changing SSH port"
-bash "${SCRIPT_DIR}/ssh.sh" change-port
+# ── Harden SSH + change port ─────────────────────────────────────────────────
+log "Hardening SSH and changing port"
+bash "${SCRIPT_DIR}/ssh.sh" harden change-port
 
 SSH_PORT=$(cat /tmp/ssh_new_port)
 rm -f /tmp/ssh_new_port
+
+# ── Firewall ──────────────────────────────────────────────────────────────────
+log "Applying firewall rules"
+bash "${SCRIPT_DIR}/firewall.sh"
 
 # ── Print GitHub Secrets ──────────────────────────────────────────────────────
 log "Done."
