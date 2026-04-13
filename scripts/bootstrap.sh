@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
 # bootstrap.sh
-# Creates deploy users, generates SSH key pairs,
-# and configures sshd for GitHub Actions access.
+# Creates users, adds your public SSH key, and hardens sshd.
 #
 # Usage:
-#   sudo bash bootstrap.sh <user1> [user2 ...]
+#   sudo bash bootstrap.sh <public_key> <user1> [user2 ...]
 #
-# After running, copy the printed secrets into GitHub → Settings → Secrets.
 # The script is idempotent: safe to re-run on an already-configured server.
 
 set -euo pipefail
@@ -19,12 +17,15 @@ die() { echo "ERROR: $*" >&2; exit 1; }
 
 # ── Validation ───────────────────────────────────────────────────────────────
 [[ $EUID -eq 0 ]] || die "Run as root (sudo)"
-[[ $# -ge 1 ]]    || die "Usage: $0 <user1> [user2 ...]"
+[[ $# -ge 2 ]]    || die "Usage: $0 <public_key> <user1> [user2 ...]"
+
+PUBLIC_KEY="$1"
+shift
 
 # ── Setup users ───────────────────────────────────────────────────────────────
 for user in "$@"; do
   log "Setting up user '${user}'"
-  bash "${SCRIPT_DIR}/setup_user.sh" "${user}"
+  bash "${SCRIPT_DIR}/setup_user.sh" "${user}" "${PUBLIC_KEY}"
 done
 
 # ── Install 3x-ui ────────────────────────────────────────────────────────────
@@ -46,22 +47,18 @@ rm -f /tmp/ssh_new_port
 log "Applying firewall rules"
 bash "${SCRIPT_DIR}/firewall.sh"
 
-# ── Print GitHub Secrets ──────────────────────────────────────────────────────
 log "Done."
 
 SSH_HOST=$(hostname -I | awk '{print $1}')
+XUI_PORT=$(x-ui settings 2>/dev/null | grep -oP 'port: \K\d+' || echo "????")
 
 for user in "$@"; do
-  PRIVATE_KEY="/home/${user}/.ssh/id_ed25519"
   echo >&2
-  echo "======== GitHub Actions Secrets: ${user} ========" >&2
+  echo "======== SSH access: ${user} ========" >&2
+  echo "  ssh -p ${SSH_PORT} -i ~/.ssh/id_rsa ${user}@${SSH_HOST}" >&2
   echo >&2
-  echo "SSH_USER=${user}" >&2
-  echo "SSH_HOST=${SSH_HOST}" >&2
-  echo "SSH_PORT=${SSH_PORT}" >&2
-  echo >&2
-  echo "SSH_KEY:" >&2
-  cat "${PRIVATE_KEY}"
-  echo >&2
-  echo "=================================================" >&2
+  echo "  3x-ui tunnel:" >&2
+  echo "  ssh -p ${SSH_PORT} -N -L 2053:localhost:${XUI_PORT} ${user}@${SSH_HOST}" >&2
+  echo "  then open: http://localhost:2053" >&2
+  echo "=====================================" >&2
 done

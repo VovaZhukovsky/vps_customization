@@ -20,6 +20,12 @@ die() { echo "ERROR: $*" >&2; exit 1; }
 
 [[ $EUID -eq 0 ]] || die "Run as root (sudo)"
 
+# ── Ensure iptables is installed ──────────────────────────────────────────────
+if ! command -v iptables &>/dev/null; then
+  log "iptables not found — installing"
+  apt-get install -y iptables
+fi
+
 # ── Detect SSH port ───────────────────────────────────────────────────────────
 SSH_PORT=$(grep -E "^\s*Port\b" "${SSHD_CONFIG}" | awk '{print $2}' | tail -1)
 SSH_PORT="${SSH_PORT:-22}"
