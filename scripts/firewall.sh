@@ -23,7 +23,7 @@ die() { echo "ERROR: $*" >&2; exit 1; }
 # ── Ensure iptables is installed ──────────────────────────────────────────────
 if ! command -v iptables &>/dev/null; then
   log "iptables not found — installing"
-  apt-get install -y iptables
+  DEBIAN_FRONTEND=noninteractive apt-get install -y iptables
 fi
 
 # ── Detect SSH port ───────────────────────────────────────────────────────────
@@ -60,12 +60,17 @@ iptables -A INPUT -p tcp --dport 443 -m conntrack --ctstate NEW -j ACCEPT
 
 # ── Persist rules ─────────────────────────────────────────────────────────────
 log "Saving rules"
-if command -v iptables-save &>/dev/null; then
-  mkdir -p /etc/iptables
-  iptables-save > /etc/iptables/rules.v4
-  log "Rules saved to /etc/iptables/rules.v4"
+mkdir -p /etc/iptables
+iptables-save > /etc/iptables/rules.v4
+log "Rules saved to /etc/iptables/rules.v4"
+
+# Ensure rules are restored on boot via iptables-persistent / netfilter-persistent
+if ! dpkg -l iptables-persistent &>/dev/null 2>&1; then
+  log "Installing iptables-persistent for autoload on boot"
+  DEBIAN_FRONTEND=noninteractive apt-get install -y iptables-persistent
 else
-  log "WARNING: iptables-save not found — rules will not persist across reboots"
+  # Package already installed — reload to pick up new rules
+  systemctl restart netfilter-persistent 2>/dev/null || true
 fi
 
 log "Firewall configured (SSH on port ${SSH_PORT})"

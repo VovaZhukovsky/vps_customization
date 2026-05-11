@@ -75,6 +75,9 @@ cmd_change_port() {
   log "Setting SSH port to ${port}"
   set_sshd_option "Port" "${port}"
 
+  log "Reloading systemd daemon"
+  systemctl daemon-reload
+
   log "Reloading sshd"
   systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null \
     || die "Failed to restart sshd"
